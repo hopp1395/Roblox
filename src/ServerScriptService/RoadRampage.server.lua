@@ -177,10 +177,12 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 	checkpointFolder.Name = name
 	checkpointFolder.Parent = lane.folder
 
+	local isFinishLine = name == "FinishLine"
+
 	local line = createPart({
 		Name = name .. "_Line",
 		Size = Vector3.new(GameConfig.ROAD_WIDTH, 1.15, 6),
-		Material = Enum.Material.Neon,
+		Material = isFinishLine and Enum.Material.SmoothPlastic or Enum.Material.Neon,
 		Color = color,
 		Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + 0.08, lineZ),
 		Parent = checkpointFolder,
@@ -190,20 +192,20 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 	for _, direction in ipairs({ -1, 1 }) do
 		createPart({
 			Name = string.format("%s_Post_%d", name, direction),
-			Size = Vector3.new(1.5, 14, 1.5),
-			Material = Enum.Material.Metal,
-			Color = Color3.fromRGB(230, 230, 230),
-			Position = Vector3.new(lane.xOffset + direction * postOffset, GameConfig.WORLD_FLOOR_Y + 7, lineZ),
+			Size = Vector3.new(2, isFinishLine and 24 or 14, 2),
+			Material = isFinishLine and Enum.Material.Neon or Enum.Material.Metal,
+			Color = isFinishLine and color or Color3.fromRGB(230, 230, 230),
+			Position = Vector3.new(lane.xOffset + direction * postOffset, GameConfig.WORLD_FLOOR_Y + (isFinishLine and 12 or 7), lineZ),
 			Parent = checkpointFolder,
 		})
 	end
 
 	local banner = createPart({
 		Name = name .. "_Banner",
-		Size = Vector3.new(GameConfig.ROAD_WIDTH + 8, 3, 1),
-		Material = Enum.Material.SmoothPlastic,
+		Size = Vector3.new(GameConfig.ROAD_WIDTH + 8, isFinishLine and 6 or 3, 1),
+		Material = isFinishLine and Enum.Material.Neon or Enum.Material.SmoothPlastic,
 		Color = Color3.fromRGB(25, 25, 25),
-		Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + 13, lineZ),
+		Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + (isFinishLine and 22 or 13), lineZ),
 		Parent = checkpointFolder,
 	})
 
@@ -231,7 +233,7 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 	local backLabel = label:Clone()
 	backLabel.Parent = backSurfaceGui
 
-	if name == "FinishLine" then
+	if isFinishLine then
 		local stripeCount = 12
 		local stripeWidth = GameConfig.ROAD_WIDTH / stripeCount
 
@@ -249,13 +251,48 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 				Parent = checkpointFolder,
 			})
 		end
+
+		createPart({
+			Name = "FinishMarker",
+			Size = Vector3.new(GameConfig.ROAD_WIDTH + 18, 1, 18),
+			Material = Enum.Material.Neon,
+			Color = color,
+			Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + 0.18, lineZ),
+			Parent = checkpointFolder,
+		})
 	end
 
 	line.Parent = checkpointFolder
 end
 
+local function createRoadEndBarrier(lane)
+	local barrierFolder = Instance.new("Folder")
+	barrierFolder.Name = "RoadEnd"
+	barrierFolder.Parent = lane.folder
+
+	createPart({
+		Name = "Barrier",
+		Size = Vector3.new(GameConfig.ROAD_WIDTH + 8, 10, 3),
+		Material = Enum.Material.Metal,
+		Color = Color3.fromRGB(180, 45, 45),
+		Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + 5, GameConfig.TRACK_END_Z + 1.5),
+		Parent = barrierFolder,
+	})
+
+	createPart({
+		Name = "BarrierTop",
+		Size = Vector3.new(GameConfig.ROAD_WIDTH + 10, 1, 4),
+		Material = Enum.Material.Neon,
+		Color = Color3.fromRGB(255, 235, 85),
+		Position = Vector3.new(lane.xOffset, GameConfig.WORLD_FLOOR_Y + 10.5, GameConfig.TRACK_END_Z + 1.5),
+		Parent = barrierFolder,
+	})
+end
+
 local function ensureRoadAhead(lane, carZ)
+	local maxSegment = math.ceil(GameConfig.TRACK_END_Z / GameConfig.ROAD_SEGMENT_LENGTH) - 1
 	local targetSegment = math.floor((carZ + GameConfig.ROAD_LOOKAHEAD) / GameConfig.ROAD_SEGMENT_LENGTH)
+	targetSegment = math.min(targetSegment, maxSegment)
 
 	while lane.lastSegmentIndex < targetSegment do
 		lane.lastSegmentIndex += 1
@@ -310,7 +347,9 @@ local function createObstaclePart(lane, obstacleZ)
 end
 
 local function ensureObstaclesAhead(lane, carZ)
-	while lane.nextObstacleZ < carZ + GameConfig.OBSTACLE_LOOKAHEAD do
+	local obstacleLimit = math.min(carZ + GameConfig.OBSTACLE_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_OBSTACLE_BUFFER)
+
+	while lane.nextObstacleZ < obstacleLimit do
 		local spacing = math.random(GameConfig.OBSTACLE_SPACING_MIN, GameConfig.OBSTACLE_SPACING_MAX)
 		lane.nextObstacleZ += spacing
 		createObstaclePart(lane, lane.nextObstacleZ)
@@ -343,9 +382,9 @@ local function ensureLane(laneIndex)
 
 	lanes[laneIndex] = lane
 
-	local finishLineZ = GameConfig.ROAD_LOOKAHEAD - GameConfig.FINISH_LINE_MARGIN
 	createCheckpointLine(lane, "StartLine", GameConfig.START_LINE_Z, Color3.fromRGB(77, 255, 125), "START")
-	createCheckpointLine(lane, "FinishLine", finishLineZ, Color3.fromRGB(255, 92, 92), "ZIEL")
+	createCheckpointLine(lane, "FinishLine", GameConfig.FINISH_LINE_Z, Color3.fromRGB(255, 92, 92), "ZIEL")
+	createRoadEndBarrier(lane)
 	buildRoadSegment(lane, -1)
 	lane.lastSegmentIndex = -1
 	ensureRoadAhead(lane, 0)
@@ -483,6 +522,7 @@ local function registerPlayer(player)
 		speed = GameConfig.START_SPEED,
 		score = 0,
 		hits = hits,
+		finished = false,
 		input = {
 			throttle = 0,
 			steer = 0,
@@ -517,6 +557,13 @@ local function destroyObstacle(lane, obstacleId)
 end
 
 local function updatePlayerState(state, dt)
+	if state.finished then
+		state.speed = 0
+		state.body:SetAttribute("Speed", 0)
+		state.positionCar(state.localX, state.z, 0)
+		return
+	end
+
 	local throttle = state.input.throttle
 	local steer = state.input.steer
 
@@ -533,7 +580,15 @@ local function updatePlayerState(state, dt)
 		-(GameConfig.ROAD_WIDTH * 0.5 - GameConfig.CAR_HALF_WIDTH),
 		GameConfig.ROAD_WIDTH * 0.5 - GameConfig.CAR_HALF_WIDTH
 	)
-	state.z += state.speed * dt
+
+	local nextZ = state.z + state.speed * dt
+	if nextZ >= GameConfig.FINISH_LINE_Z then
+		nextZ = GameConfig.FINISH_LINE_Z
+		state.finished = true
+		state.speed = 0
+	end
+
+	state.z = nextZ
 
 	local steerAngle = steer * GameConfig.MAX_STEER_ANGLE
 	state.positionCar(state.localX, state.z, steerAngle)

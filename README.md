@@ -24,4 +24,4 @@ Ein kleines Roblox-Projekt für ein Arcade-Fahrspiel: Du steuerst ein Auto über
 
 ## Spielidee
 
-Die Straße wird für jeden Spieler als eigene Spur aufgebaut. Hindernisse werden zufällig vor dem Auto erzeugt. Start- und Ziellinie markieren den Abschnitt der Strecke. Für jedes umgefahrene Objekt steigt der Score.
+Die Straße wird für jeden Spieler als eigene Spur aufgebaut. Hindernisse werden zufällig vor dem Auto erzeugt. Start- und Ziellinie markieren einen festen Streckenabschnitt, und am Ziel endet die Straße sichtbar. Für jedes umgefahrene Objekt steigt der Score.
