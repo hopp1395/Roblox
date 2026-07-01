@@ -14,7 +14,8 @@ local carsFolder = worldFolder:WaitForChild("Cars")
 
 local currentCarBody = nil
 local hud = nil
-local scoreLabel = nil
+local statusLabel = nil
+local pointsLabel = nil
 local speedLabel = nil
 
 local keyState = {
@@ -50,23 +51,34 @@ local function buildHud()
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Parent = screenGui
 
-	scoreLabel = Instance.new("TextLabel")
-	scoreLabel.BackgroundTransparency = 1
-	scoreLabel.Position = UDim2.fromOffset(20, 56)
-	scoreLabel.Size = UDim2.fromOffset(280, 28)
-	scoreLabel.Font = Enum.Font.GothamSemibold
-	scoreLabel.Text = "Treffer: 0"
-	scoreLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
-	scoreLabel.TextSize = 22
-	scoreLabel.TextXAlignment = Enum.TextXAlignment.Left
-	scoreLabel.Parent = screenGui
+		statusLabel = Instance.new("TextLabel")
+		statusLabel.BackgroundTransparency = 1
+		statusLabel.Position = UDim2.fromOffset(20, 56)
+		statusLabel.Size = UDim2.fromOffset(420, 28)
+		statusLabel.Font = Enum.Font.GothamSemibold
+		statusLabel.Text = "Status: Weiche den Hindernissen aus"
+		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+		statusLabel.TextSize = 22
+		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+		statusLabel.Parent = screenGui
 
-	speedLabel = Instance.new("TextLabel")
-	speedLabel.BackgroundTransparency = 1
-	speedLabel.Position = UDim2.fromOffset(20, 86)
-	speedLabel.Size = UDim2.fromOffset(280, 24)
-	speedLabel.Font = Enum.Font.Gotham
-	speedLabel.Text = "Tempo: 0"
+		pointsLabel = Instance.new("TextLabel")
+		pointsLabel.BackgroundTransparency = 1
+		pointsLabel.Position = UDim2.fromOffset(20, 86)
+		pointsLabel.Size = UDim2.fromOffset(280, 24)
+		pointsLabel.Font = Enum.Font.Gotham
+		pointsLabel.Text = "Punkte: 0"
+		pointsLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+		pointsLabel.TextSize = 18
+		pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+		pointsLabel.Parent = screenGui
+
+		speedLabel = Instance.new("TextLabel")
+		speedLabel.BackgroundTransparency = 1
+		speedLabel.Position = UDim2.fromOffset(20, 110)
+		speedLabel.Size = UDim2.fromOffset(280, 24)
+		speedLabel.Font = Enum.Font.Gotham
+		speedLabel.Text = "Tempo: 0"
 	speedLabel.TextColor3 = Color3.fromRGB(223, 240, 255)
 	speedLabel.TextSize = 18
 	speedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -78,7 +90,7 @@ local function buildHud()
 	instructions.Position = UDim2.new(1, -280, 0, 18)
 	instructions.Size = UDim2.fromOffset(250, 90)
 	instructions.Font = Enum.Font.Gotham
-	instructions.Text = "W / Pfeil hoch: Beschleunigen\nS / Pfeil runter: Bremsen\nA/D oder Pfeile: Lenken"
+	instructions.Text = "Weiche Hindernissen aus.\nBeruehrung = Crash.\nW/S und A/D oder Pfeile: Fahren"
 	instructions.TextColor3 = Color3.fromRGB(255, 255, 255)
 	instructions.TextSize = 16
 	instructions.TextWrapped = true
@@ -91,23 +103,33 @@ local function buildHud()
 	hud = screenGui
 end
 
-local function getScore()
-	local leaderstats = player:FindFirstChild("leaderstats")
-	local hits = leaderstats and leaderstats:FindFirstChild("Hits")
-	return hits and hits.Value or 0
-end
-
 local function updateHud()
-	if not scoreLabel or not speedLabel then
+	if not statusLabel or not pointsLabel or not speedLabel then
 		return
 	end
 
-	scoreLabel.Text = string.format("Treffer: %d", getScore())
-
 	if currentCarBody and currentCarBody.Parent then
+		local score = currentCarBody:GetAttribute("Score") or 0
 		local speed = currentCarBody:GetAttribute("Speed") or 0
+		local state = currentCarBody:GetAttribute("GameState") or "Running"
+		local statusText = currentCarBody:GetAttribute("StatusText") or "Weiche den Hindernissen aus"
+		pointsLabel.Text = string.format("Punkte: %d", score)
 		speedLabel.Text = string.format("Tempo: %d", speed)
+
+		if state == "Crashed" then
+			statusLabel.Text = statusText
+			statusLabel.TextColor3 = Color3.fromRGB(255, 122, 122)
+		elseif state == "Finished" then
+			statusLabel.Text = statusText
+			statusLabel.TextColor3 = Color3.fromRGB(122, 255, 145)
+		else
+			statusLabel.Text = statusText
+			statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+		end
 	else
+		statusLabel.Text = "Status: Warte auf das Auto"
+		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+		pointsLabel.Text = "Punkte: 0"
 		speedLabel.Text = "Tempo: 0"
 	end
 end

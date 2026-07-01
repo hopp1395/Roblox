@@ -1,11 +1,11 @@
 # Roblox
 
-Ein kleines Roblox-Projekt für ein Arcade-Fahrspiel: Du steuerst ein Auto über eine Straße und sammelst Punkte, indem du zufällig platzierte Gegenstände umfährst.
+Ein kleines Roblox-Projekt fuer ein Arcade-Fahrspiel: Du steuerst ein Auto ueber eine Strasse, weichst Hindernismauern aus und sammelst dabei Punkte.
 
 ## Inhalt
 
 - `default.project.json`: Rojo-Projektdatei
-- `src/ServerScriptService/RoadRampage.server.lua`: Weltaufbau, Fahrphysik, Hindernisse, Score
+- `src/ServerScriptService/RoadRampage.server.lua`: Weltaufbau, Fahrphysik, Hindernisse, Crash-Logik
 - `src/StarterPlayer/StarterPlayerScripts/CarController.client.lua`: Eingabe, Kamera, HUD
 - `src/ReplicatedStorage/Shared/GameConfig.lua`: Balancing und Konstanten
 
@@ -24,4 +24,4 @@ Ein kleines Roblox-Projekt für ein Arcade-Fahrspiel: Du steuerst ein Auto über
 
 ## Spielidee
 
-Die Straße wird für jeden Spieler als eigene Spur aufgebaut. Hindernisse werden zufällig vor dem Auto erzeugt. Start- und Ziellinie markieren einen festen Streckenabschnitt, und am Ziel endet die Straße sichtbar. Für jedes umgefahrene Objekt steigt der Score.
+Die Strasse wird fuer jeden Spieler als eigene Spur aufgebaut. Hindernisse werden als Mauern zufaellig vor dem Auto erzeugt und muessen umfahren werden. Fuer jede erfolgreich passierte Mauer gibt es Punkte; bei Beruehrung endet das Spiel mit einem Crash. Start- und Ziellinie markieren einen festen Streckenabschnitt, und am Ziel endet die Strasse sichtbar.

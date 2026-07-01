@@ -56,26 +56,41 @@ skyPlate.Parent = worldFolder
 
 local obstacleTemplates = {
 	{
-		name = "Crate",
-		size = Vector3.new(6, 6, 6),
-		color = Color3.fromRGB(173, 117, 62),
-		material = Enum.Material.WoodPlanks,
-		shape = Enum.PartType.Block,
+		name = "ConcreteWall",
+		size = Vector3.new(12, 8, 3),
+		color = Color3.fromRGB(132, 132, 138),
+		material = Enum.Material.Concrete,
 	},
 	{
-		name = "Barrel",
-		size = Vector3.new(5, 7, 5),
-		color = Color3.fromRGB(185, 63, 48),
+		name = "BrickWall",
+		size = Vector3.new(14, 9, 3),
+		color = Color3.fromRGB(150, 77, 62),
+		material = Enum.Material.Brick,
+	},
+	{
+		name = "RoadBarrier",
+		size = Vector3.new(10, 7, 3),
+		color = Color3.fromRGB(218, 118, 44),
 		material = Enum.Material.Metal,
-		shape = Enum.PartType.Cylinder,
-		rotation = Vector3.new(0, 0, 90),
+	},
+}
+
+local bonusTemplates = {
+	{
+		name = "Fuel",
+		points = 3,
+		color = Color3.fromRGB(220, 50, 50),
+		size = Vector3.new(3, 5, 3),
+		material = Enum.Material.Metal,
+		label = "+3 Benzin",
 	},
 	{
-		name = "BalloonBox",
-		size = Vector3.new(5, 5, 5),
-		color = Color3.fromRGB(255, 196, 61),
-		material = Enum.Material.SmoothPlastic,
-		shape = Enum.PartType.Ball,
+		name = "Wrench",
+		points = 5,
+		color = Color3.fromRGB(180, 180, 60),
+		size = Vector3.new(4, 2, 1),
+		material = Enum.Material.Metal,
+		label = "+5 Schlüssel",
 	},
 }
 
@@ -83,6 +98,7 @@ local lanes = {}
 local playerStates = {}
 local nextLaneIndex = 0
 local nextObstacleId = 0
+local nextBonusId = 0
 
 local function clamp(value, minimum, maximum)
 	return math.max(minimum, math.min(maximum, value))
@@ -315,20 +331,11 @@ local function createObstaclePart(lane, obstacleZ)
 	part.Size = template.size
 	part.Color = template.color
 	part.Material = template.material
-	part.Shape = template.shape
 	part.CFrame = CFrame.new(
 		lane.xOffset + localX,
 		GameConfig.WORLD_FLOOR_Y + template.size.Y * 0.5,
 		obstacleZ
 	)
-
-	if template.rotation then
-		part.CFrame *= CFrame.Angles(
-			math.rad(template.rotation.X),
-			math.rad(template.rotation.Y),
-			math.rad(template.rotation.Z)
-		)
-	end
 
 	part.Parent = lane.obstaclesFolder
 
@@ -346,6 +353,130 @@ local function createObstaclePart(lane, obstacleZ)
 	lane.obstacles[nextObstacleId] = obstacle
 end
 
+local function addPoint(state, amount)
+	state.score += amount
+	state.hits.Value = state.score
+	state.body:SetAttribute("Score", state.score)
+end
+
+local function createBonusItem(lane, bonusZ)
+	nextBonusId += 1
+
+	local template = bonusTemplates[math.random(1, #bonusTemplates)]
+	local usableHalfWidth = GameConfig.ROAD_WIDTH * 0.5 - GameConfig.OBSTACLE_SIDE_MARGIN - 2
+	local localX = math.random(-usableHalfWidth * 10, usableHalfWidth * 10) / 10
+
+	local model = Instance.new("Model")
+	model.Name = string.format("%s_%d", template.name, nextBonusId)
+	model:SetAttribute("IsBonus", true)
+	model:SetAttribute("BonusId", nextBonusId)
+	model.Parent = lane.bonusFolder
+
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Anchored = true
+	body.CanCollide = false
+	body.TopSurface = Enum.SurfaceType.Smooth
+	body.BottomSurface = Enum.SurfaceType.Smooth
+	body.Size = template.size
+	body.Color = template.color
+	body.Material = template.material
+	body.Parent = model
+
+	if template.name == "Fuel" then
+		-- Kanister: roter Block + kleines Röhrchen oben
+		local cap = Instance.new("Part")
+		cap.Name = "Cap"
+		cap.Anchored = true
+		cap.CanCollide = false
+		cap.Size = Vector3.new(1, 1.5, 1)
+		cap.Color = Color3.fromRGB(40, 40, 40)
+		cap.Material = Enum.Material.Metal
+		cap.TopSurface = Enum.SurfaceType.Smooth
+		cap.BottomSurface = Enum.SurfaceType.Smooth
+		cap.Parent = model
+		cap.CFrame = CFrame.new(
+			lane.xOffset + localX,
+			GameConfig.WORLD_FLOOR_Y + template.size.Y + 0.75,
+			bonusZ
+		)
+	elseif template.name == "Wrench" then
+		-- Schraubenschlüssel: flacher gelber Balken + zwei Enden
+		local head1 = Instance.new("Part")
+		head1.Name = "Head1"
+		head1.Anchored = true
+		head1.CanCollide = false
+		head1.Size = Vector3.new(2.5, 2.5, 1)
+		head1.Color = template.color
+		head1.Material = Enum.Material.Metal
+		head1.TopSurface = Enum.SurfaceType.Smooth
+		head1.BottomSurface = Enum.SurfaceType.Smooth
+		head1.Parent = model
+		head1.CFrame = CFrame.new(
+			lane.xOffset + localX + 2.8,
+			GameConfig.WORLD_FLOOR_Y + template.size.Y * 0.5 + 1,
+			bonusZ
+		)
+
+		local head2 = head1:Clone()
+		head2.Name = "Head2"
+		head2.CFrame = CFrame.new(
+			lane.xOffset + localX - 2.8,
+			GameConfig.WORLD_FLOOR_Y + template.size.Y * 0.5 + 1,
+			bonusZ
+		)
+		head2.Parent = model
+	end
+
+	-- leuchtendes Neon-Glow-Ring unter dem Item
+	local glow = Instance.new("Part")
+	glow.Name = "Glow"
+	glow.Anchored = true
+	glow.CanCollide = false
+	glow.Size = Vector3.new(template.size.X + 3, 0.3, template.size.X + 3)
+	glow.Shape = Enum.PartType.Cylinder
+	glow.Color = template.color
+	glow.Material = Enum.Material.Neon
+	glow.TopSurface = Enum.SurfaceType.Smooth
+	glow.BottomSurface = Enum.SurfaceType.Smooth
+	glow.Parent = model
+	glow.CFrame = CFrame.new(
+		lane.xOffset + localX,
+		GameConfig.WORLD_FLOOR_Y + 0.2,
+		bonusZ
+	) * CFrame.Angles(0, 0, math.rad(90))
+
+	body.CFrame = CFrame.new(
+		lane.xOffset + localX,
+		GameConfig.WORLD_FLOOR_Y + template.size.Y * 0.5 + 1,
+		bonusZ
+	)
+
+	model.PrimaryPart = body
+
+	local bonus = {
+		id = nextBonusId,
+		lane = lane,
+		worldX = lane.xOffset + localX,
+		z = bonusZ,
+		model = model,
+		body = body,
+		halfWidth = (template.size.X + 3) * 0.5,
+		halfLength = (template.size.Z + 3) * 0.5,
+		points = template.points,
+		label = template.label,
+	}
+
+	lane.bonusItems[nextBonusId] = bonus
+end
+
+local function destroyBonus(lane, bonusId)
+	local bonus = lane.bonusItems[bonusId]
+	if not bonus then return end
+	if bonus.model then bonus.model:Destroy() end
+	lane.bonusItems[bonusId] = nil
+end
+
 local function ensureObstaclesAhead(lane, carZ)
 	local obstacleLimit = math.min(carZ + GameConfig.OBSTACLE_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_OBSTACLE_BUFFER)
 
@@ -353,6 +484,16 @@ local function ensureObstaclesAhead(lane, carZ)
 		local spacing = math.random(GameConfig.OBSTACLE_SPACING_MIN, GameConfig.OBSTACLE_SPACING_MAX)
 		lane.nextObstacleZ += spacing
 		createObstaclePart(lane, lane.nextObstacleZ)
+	end
+end
+
+local function ensureBonusAhead(lane, carZ)
+	local bonusLimit = math.min(carZ + GameConfig.OBSTACLE_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_OBSTACLE_BUFFER)
+
+	while lane.nextBonusZ < bonusLimit do
+		local spacing = math.random(GameConfig.BONUS_SPACING_MIN, GameConfig.BONUS_SPACING_MAX)
+		lane.nextBonusZ += spacing
+		createBonusItem(lane, lane.nextBonusZ)
 	end
 end
 
@@ -370,13 +511,20 @@ local function ensureLane(laneIndex)
 	obstaclesFolder.Name = "Obstacles"
 	obstaclesFolder.Parent = laneFolder
 
+	local bonusFolder = Instance.new("Folder")
+	bonusFolder.Name = "Bonus"
+	bonusFolder.Parent = laneFolder
+
 	local lane = {
 		index = laneIndex,
 		xOffset = xOffset,
 		folder = laneFolder,
 		obstaclesFolder = obstaclesFolder,
+		bonusFolder = bonusFolder,
 		obstacles = {},
+		bonusItems = {},
 		nextObstacleZ = GameConfig.OBSTACLE_START_Z,
+		nextBonusZ = GameConfig.BONUS_START_Z,
 		lastSegmentIndex = -1,
 	}
 
@@ -389,6 +537,7 @@ local function ensureLane(laneIndex)
 	lane.lastSegmentIndex = -1
 	ensureRoadAhead(lane, 0)
 	ensureObstaclesAhead(lane, 0)
+	ensureBonusAhead(lane, 0)
 
 	return lane
 end
@@ -488,6 +637,8 @@ local function createCar(player, lane)
 	body:SetAttribute("Speed", GameConfig.START_SPEED)
 	body:SetAttribute("Score", 0)
 	body:SetAttribute("GameTitle", GameConfig.GAME_NAME)
+	body:SetAttribute("GameState", "Running")
+	body:SetAttribute("StatusText", "Weiche den Hindernissen aus")
 
 	return model, positionCar
 end
@@ -498,7 +649,7 @@ local function createLeaderstats(player)
 	leaderstats.Parent = player
 
 	local hits = Instance.new("IntValue")
-	hits.Name = "Hits"
+	hits.Name = "Points"
 	hits.Value = 0
 	hits.Parent = leaderstats
 
@@ -556,10 +707,44 @@ local function destroyObstacle(lane, obstacleId)
 	lane.obstacles[obstacleId] = nil
 end
 
+local function crashPlayer(state, obstacle)
+	state.crashed = true
+	state.speed = 0
+	state.input.throttle = 0
+	state.input.steer = 0
+
+	local crashStopZ = math.max(0, obstacle.z - (GameConfig.CAR_HALF_LENGTH + obstacle.halfLength * 0.5))
+	state.z = math.min(state.z, crashStopZ)
+	state.positionCar(state.localX, state.z, 0)
+	state.body.Color = Color3.fromRGB(90, 25, 20)
+	state.body.Material = Enum.Material.Metal
+	state.body:SetAttribute("Speed", 0)
+	state.body:SetAttribute("GameState", "Crashed")
+	state.body:SetAttribute("StatusText", "Crash! Spiel vorbei")
+
+	if obstacle.part then
+		local explosion = Instance.new("Explosion")
+		explosion.Position = obstacle.part.Position
+		explosion.BlastPressure = 0
+		explosion.BlastRadius = 8
+		explosion.DestroyJointRadiusPercent = 0
+		explosion.Parent = workspace
+	end
+end
+
 local function updatePlayerState(state, dt)
+	if state.crashed then
+		state.speed = 0
+		state.body:SetAttribute("Speed", 0)
+		state.positionCar(state.localX, state.z, 0)
+		return
+	end
+
 	if state.finished then
 		state.speed = 0
 		state.body:SetAttribute("Speed", 0)
+		state.body:SetAttribute("GameState", "Finished")
+		state.body:SetAttribute("StatusText", "Ziel erreicht")
 		state.positionCar(state.localX, state.z, 0)
 		return
 	end
@@ -597,9 +782,11 @@ local function updatePlayerState(state, dt)
 
 	ensureRoadAhead(state.lane, state.z)
 	ensureObstaclesAhead(state.lane, state.z)
+	ensureBonusAhead(state.lane, state.z)
 
 	for obstacleId, obstacle in pairs(state.lane.obstacles) do
 		if obstacle.z < state.z - GameConfig.OBSTACLE_CULL_DISTANCE then
+			addPoint(state, 1)
 			destroyObstacle(state.lane, obstacleId)
 		else
 			local dx = math.abs((state.lane.xOffset + state.localX) - obstacle.worldX)
@@ -608,10 +795,28 @@ local function updatePlayerState(state, dt)
 			local hitLength = GameConfig.CAR_HALF_LENGTH + obstacle.halfLength * 0.75
 
 			if dx <= hitWidth and dz <= hitLength then
-				state.score += 1
-				state.hits.Value = state.score
-				state.body:SetAttribute("Score", state.score)
-				destroyObstacle(state.lane, obstacleId)
+				crashPlayer(state, obstacle)
+				return
+			end
+		end
+	end
+
+	for bonusId, bonus in pairs(state.lane.bonusItems) do
+		if bonus.z < state.z - GameConfig.OBSTACLE_CULL_DISTANCE then
+			destroyBonus(state.lane, bonusId)
+		else
+			local dx = math.abs((state.lane.xOffset + state.localX) - bonus.worldX)
+			local dz = math.abs(state.z - bonus.z)
+
+			if dx <= bonus.halfWidth and dz <= bonus.halfLength then
+				addPoint(state, bonus.points)
+				state.body:SetAttribute("StatusText", string.format("%s gesammelt!", bonus.label))
+				task.delay(1.5, function()
+					if not state.crashed and not state.finished then
+						state.body:SetAttribute("StatusText", "Weiche den Hindernissen aus")
+					end
+				end)
+				destroyBonus(state.lane, bonusId)
 			end
 		end
 	end
