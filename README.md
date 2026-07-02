@@ -1,6 +1,6 @@
 # Roblox
 
-Ein kleines Roblox-Projekt fuer ein Arcade-Fahrspiel: Du steuerst ein Auto ueber eine Strasse, weichst Hindernismauern aus und sammelst dabei Punkte.
+Ein kleines Roblox-Projekt fuer ein Arcade-Fahrspiel mit klarer Mission: Du steuerst einen Evakuierungs-Racer durch eine ausfallende Neon-Stadt, bringst einen Energiekern zum Evakuierungstor, weichst Truemmern aus und sammelst Versorgungspunkte.
 
 ## Inhalt
 
@@ -38,4 +38,4 @@ rojo plugin install
 
 ## Spielidee
 
-Die Strasse wird fuer jeden Spieler als eigene Spur aufgebaut. Hindernisse werden als Mauern zufaellig vor dem Auto erzeugt und muessen umfahren werden. Fuer jede erfolgreich passierte Mauer gibt es Punkte; bei Beruehrung endet das Spiel mit einem Crash. Start- und Ziellinie markieren einen festen Streckenabschnitt, und am Ziel endet die Strasse sichtbar.
+Die Strasse wird fuer jeden Spieler als eigene Evakuierungsspur aufgebaut. Die Strecke fuehrt durch mehrere Stadtsektoren mit eigenem Look: Neon Quarter, Transit Ring, Industrial Belt und den finalen Evac Corridor. Auf dem Weg liegen Quarantaene-Barrieren, Fracht und Stromknoten als Hindernisse. Fuer jede erfolgreich passierte Gefahr gibt es Punkte; Akkuzellen und Reparaturkits liefern Bonuspunkte. Start-Hub, Missionsbeschilderung und Evakuierungstor geben der Fahrt einen klaren Kontext, und bei einem Zusammenstoss ist der Konvoi verloren.
