@@ -5,6 +5,8 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local GameConfig = require(Shared:WaitForChild("GameConfig"))
 
 local remotes = ReplicatedStorage:WaitForChild("RoadRampageRemotes")
 local inputRemote = remotes:WaitForChild("InputChanged")
@@ -14,9 +16,12 @@ local carsFolder = worldFolder:WaitForChild("Cars")
 
 local currentCarBody = nil
 local hud = nil
+local titleLabel = nil
 local statusLabel = nil
 local pointsLabel = nil
 local speedLabel = nil
+local progressLabel = nil
+local progressFill = nil
 
 local keyState = {
 	forward = false,
@@ -30,6 +35,10 @@ local lastPayload = {
 	steer = 99,
 }
 
+local function clamp(value, minimum, maximum)
+	return math.max(minimum, math.min(maximum, value))
+end
+
 local function buildHud()
 	if hud then
 		return
@@ -38,99 +47,211 @@ local function buildHud()
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "RoadRampageHud"
 	screenGui.ResetOnSpawn = false
+	screenGui.IgnoreGuiInset = true
 	screenGui.Parent = player:WaitForChild("PlayerGui")
 
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.fromOffset(20, 16)
-	title.Size = UDim2.fromOffset(460, 34)
-	title.Font = Enum.Font.GothamBold
-	title.Text = "Road Rampage"
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextSize = 28
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = screenGui
+	local statsPanel = Instance.new("Frame")
+	statsPanel.Name = "StatsPanel"
+	statsPanel.BackgroundColor3 = Color3.fromRGB(14, 18, 28)
+	statsPanel.BackgroundTransparency = 0.18
+	statsPanel.Position = UDim2.fromOffset(18, 18)
+	statsPanel.Size = UDim2.fromOffset(360, 188)
+	statsPanel.Parent = screenGui
 
-		statusLabel = Instance.new("TextLabel")
-		statusLabel.BackgroundTransparency = 1
-		statusLabel.Position = UDim2.fromOffset(20, 56)
-		statusLabel.Size = UDim2.fromOffset(420, 28)
-		statusLabel.Font = Enum.Font.GothamSemibold
-		statusLabel.Text = "Status: Weiche den Hindernissen aus"
-		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
-		statusLabel.TextSize = 22
-		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-		statusLabel.Parent = screenGui
+	local statsCorner = Instance.new("UICorner")
+	statsCorner.CornerRadius = UDim.new(0, 18)
+	statsCorner.Parent = statsPanel
 
-		pointsLabel = Instance.new("TextLabel")
-		pointsLabel.BackgroundTransparency = 1
-		pointsLabel.Position = UDim2.fromOffset(20, 86)
-		pointsLabel.Size = UDim2.fromOffset(280, 24)
-		pointsLabel.Font = Enum.Font.Gotham
-		pointsLabel.Text = "Punkte: 0"
-		pointsLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
-		pointsLabel.TextSize = 18
-		pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
-		pointsLabel.Parent = screenGui
+	local statsStroke = Instance.new("UIStroke")
+	statsStroke.Color = Color3.fromRGB(95, 205, 255)
+	statsStroke.Transparency = 0.25
+	statsStroke.Thickness = 1.5
+	statsStroke.Parent = statsPanel
 
-		speedLabel = Instance.new("TextLabel")
-		speedLabel.BackgroundTransparency = 1
-		speedLabel.Position = UDim2.fromOffset(20, 110)
-		speedLabel.Size = UDim2.fromOffset(280, 24)
-		speedLabel.Font = Enum.Font.Gotham
-		speedLabel.Text = "Tempo: 0"
+	local statsGradient = Instance.new("UIGradient")
+	statsGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 36, 58)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 14, 22)),
+	})
+	statsGradient.Rotation = 90
+	statsGradient.Parent = statsPanel
+
+	titleLabel = Instance.new("TextLabel")
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Position = UDim2.fromOffset(18, 14)
+	titleLabel.Size = UDim2.fromOffset(260, 34)
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.Text = GameConfig.GAME_NAME
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextSize = 28
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Parent = statsPanel
+
+	local subtitleLabel = Instance.new("TextLabel")
+	subtitleLabel.BackgroundTransparency = 1
+	subtitleLabel.Position = UDim2.fromOffset(18, 48)
+	subtitleLabel.Size = UDim2.fromOffset(300, 20)
+	subtitleLabel.Font = Enum.Font.GothamMedium
+	subtitleLabel.Text = GameConfig.HUD_SUBTITLE
+	subtitleLabel.TextColor3 = Color3.fromRGB(154, 201, 255)
+	subtitleLabel.TextSize = 14
+	subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	subtitleLabel.Parent = statsPanel
+
+	statusLabel = Instance.new("TextLabel")
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Position = UDim2.fromOffset(18, 78)
+	statusLabel.Size = UDim2.fromOffset(324, 24)
+	statusLabel.Font = Enum.Font.GothamSemibold
+	statusLabel.Text = "Status: " .. GameConfig.STATUS_DEFAULT
+	statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+	statusLabel.TextSize = 20
+	statusLabel.TextWrapped = true
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.Parent = statsPanel
+
+	pointsLabel = Instance.new("TextLabel")
+	pointsLabel.BackgroundTransparency = 1
+	pointsLabel.Position = UDim2.fromOffset(18, 112)
+	pointsLabel.Size = UDim2.fromOffset(170, 24)
+	pointsLabel.Font = Enum.Font.GothamBold
+	pointsLabel.Text = "Punkte: 0"
+	pointsLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+	pointsLabel.TextSize = 18
+	pointsLabel.TextXAlignment = Enum.TextXAlignment.Left
+	pointsLabel.Parent = statsPanel
+
+	speedLabel = Instance.new("TextLabel")
+	speedLabel.BackgroundTransparency = 1
+	speedLabel.Position = UDim2.fromOffset(188, 112)
+	speedLabel.Size = UDim2.fromOffset(150, 24)
+	speedLabel.Font = Enum.Font.GothamBold
+	speedLabel.Text = "Tempo: 0"
 	speedLabel.TextColor3 = Color3.fromRGB(223, 240, 255)
 	speedLabel.TextSize = 18
 	speedLabel.TextXAlignment = Enum.TextXAlignment.Left
-	speedLabel.Parent = screenGui
+	speedLabel.Parent = statsPanel
+
+	progressLabel = Instance.new("TextLabel")
+	progressLabel.BackgroundTransparency = 1
+	progressLabel.Position = UDim2.fromOffset(18, 144)
+	progressLabel.Size = UDim2.fromOffset(220, 20)
+	progressLabel.Font = Enum.Font.GothamMedium
+	progressLabel.Text = "Strecke: 0%"
+	progressLabel.TextColor3 = Color3.fromRGB(180, 225, 255)
+	progressLabel.TextSize = 16
+	progressLabel.TextXAlignment = Enum.TextXAlignment.Left
+	progressLabel.Parent = statsPanel
+
+	local progressTrack = Instance.new("Frame")
+	progressTrack.Name = "ProgressTrack"
+	progressTrack.BackgroundColor3 = Color3.fromRGB(38, 44, 58)
+	progressTrack.Position = UDim2.fromOffset(18, 168)
+	progressTrack.Size = UDim2.fromOffset(324, 10)
+	progressTrack.Parent = statsPanel
+
+	local progressTrackCorner = Instance.new("UICorner")
+	progressTrackCorner.CornerRadius = UDim.new(1, 0)
+	progressTrackCorner.Parent = progressTrack
+
+	progressFill = Instance.new("Frame")
+	progressFill.Name = "ProgressFill"
+	progressFill.BackgroundColor3 = Color3.fromRGB(91, 232, 255)
+	progressFill.Size = UDim2.fromScale(0, 1)
+	progressFill.Parent = progressTrack
+
+	local progressFillCorner = Instance.new("UICorner")
+	progressFillCorner.CornerRadius = UDim.new(1, 0)
+	progressFillCorner.Parent = progressFill
+
+	local progressGradient = Instance.new("UIGradient")
+	progressGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(82, 234, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 178, 81)),
+	})
+	progressGradient.Parent = progressFill
+
+	local instructionsPanel = Instance.new("Frame")
+	instructionsPanel.Name = "InstructionsPanel"
+	instructionsPanel.BackgroundColor3 = Color3.fromRGB(17, 20, 27)
+	instructionsPanel.BackgroundTransparency = 0.2
+	instructionsPanel.Position = UDim2.new(1, -300, 0, 20)
+	instructionsPanel.Size = UDim2.fromOffset(272, 116)
+	instructionsPanel.Parent = screenGui
+
+	local instructionsCorner = Instance.new("UICorner")
+	instructionsCorner.CornerRadius = UDim.new(0, 18)
+	instructionsCorner.Parent = instructionsPanel
+
+	local instructionsStroke = Instance.new("UIStroke")
+	instructionsStroke.Color = Color3.fromRGB(255, 174, 86)
+	instructionsStroke.Transparency = 0.25
+	instructionsStroke.Thickness = 1.5
+	instructionsStroke.Parent = instructionsPanel
+
+	local instructionsTitle = Instance.new("TextLabel")
+	instructionsTitle.BackgroundTransparency = 1
+	instructionsTitle.Position = UDim2.fromOffset(16, 14)
+	instructionsTitle.Size = UDim2.fromOffset(220, 24)
+	instructionsTitle.Font = Enum.Font.GothamBold
+	instructionsTitle.Text = GameConfig.HUD_BRIEFING_TITLE
+	instructionsTitle.TextColor3 = Color3.fromRGB(255, 228, 165)
+	instructionsTitle.TextSize = 20
+	instructionsTitle.TextXAlignment = Enum.TextXAlignment.Left
+	instructionsTitle.Parent = instructionsPanel
 
 	local instructions = Instance.new("TextLabel")
-	instructions.BackgroundTransparency = 0.2
-	instructions.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	instructions.Position = UDim2.new(1, -280, 0, 18)
-	instructions.Size = UDim2.fromOffset(250, 90)
+	instructions.BackgroundTransparency = 1
+	instructions.Position = UDim2.fromOffset(16, 44)
+	instructions.Size = UDim2.fromOffset(240, 58)
 	instructions.Font = Enum.Font.Gotham
-	instructions.Text = "Weiche Hindernissen aus.\nBeruehrung = Crash.\nW/S und A/D oder Pfeile: Fahren"
-	instructions.TextColor3 = Color3.fromRGB(255, 255, 255)
+	instructions.Text = GameConfig.HUD_INSTRUCTIONS
+	instructions.TextColor3 = Color3.fromRGB(230, 234, 241)
 	instructions.TextSize = 16
 	instructions.TextWrapped = true
-	instructions.Parent = screenGui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = instructions
+	instructions.TextXAlignment = Enum.TextXAlignment.Left
+	instructions.TextYAlignment = Enum.TextYAlignment.Top
+	instructions.Parent = instructionsPanel
 
 	hud = screenGui
 end
 
 local function updateHud()
-	if not statusLabel or not pointsLabel or not speedLabel then
+	if not titleLabel or not statusLabel or not pointsLabel or not speedLabel or not progressLabel or not progressFill then
 		return
 	end
 
 	if currentCarBody and currentCarBody.Parent then
+		local title = currentCarBody:GetAttribute("GameTitle") or GameConfig.GAME_NAME
 		local score = currentCarBody:GetAttribute("Score") or 0
 		local speed = currentCarBody:GetAttribute("Speed") or 0
 		local state = currentCarBody:GetAttribute("GameState") or "Running"
-		local statusText = currentCarBody:GetAttribute("StatusText") or "Weiche den Hindernissen aus"
+		local statusText = currentCarBody:GetAttribute("StatusText") or GameConfig.STATUS_DEFAULT
+		local progress = clamp(currentCarBody:GetAttribute("Progress") or 0, 0, 1)
+		titleLabel.Text = title
 		pointsLabel.Text = string.format("Punkte: %d", score)
 		speedLabel.Text = string.format("Tempo: %d", speed)
+		progressLabel.Text = string.format("Strecke: %d%%", math.floor(progress * 100 + 0.5))
+		progressFill.Size = UDim2.fromScale(progress, 1)
 
 		if state == "Crashed" then
-			statusLabel.Text = statusText
+			statusLabel.Text = "Status: " .. statusText
 			statusLabel.TextColor3 = Color3.fromRGB(255, 122, 122)
 		elseif state == "Finished" then
-			statusLabel.Text = statusText
+			statusLabel.Text = "Status: " .. statusText
 			statusLabel.TextColor3 = Color3.fromRGB(122, 255, 145)
 		else
-			statusLabel.Text = statusText
+			statusLabel.Text = "Status: " .. statusText
 			statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
 		end
 	else
-		statusLabel.Text = "Status: Warte auf das Auto"
+		titleLabel.Text = GameConfig.GAME_NAME
+		statusLabel.Text = "Status: " .. GameConfig.STATUS_WAITING
 		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
 		pointsLabel.Text = "Punkte: 0"
 		speedLabel.Text = "Tempo: 0"
+		progressLabel.Text = "Strecke: 0%"
+		progressFill.Size = UDim2.fromScale(0, 1)
 	end
 end
 
