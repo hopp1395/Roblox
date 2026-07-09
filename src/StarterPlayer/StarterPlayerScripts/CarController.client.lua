@@ -57,7 +57,7 @@ local function buildHud()
 		statusLabel.Position = UDim2.fromOffset(20, 56)
 		statusLabel.Size = UDim2.fromOffset(420, 28)
 		statusLabel.Font = Enum.Font.GothamSemibold
-		statusLabel.Text = "Status: Weiche den Hindernissen aus"
+		statusLabel.Text = "Status: Weiche dem Gegenverkehr aus"
 		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
 		statusLabel.TextSize = 22
 		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -102,7 +102,7 @@ local function buildHud()
 	instructions.Position = UDim2.new(1, -280, 0, 18)
 	instructions.Size = UDim2.fromOffset(250, 90)
 	instructions.Font = Enum.Font.Gotham
-	instructions.Text = "Weiche Hindernissen aus.\nBeruehrung = Crash.\nW/S und A/D oder Pfeile: Fahren"
+	instructions.Text = "Weiche dem Gegenverkehr aus.\nKollision = Crash.\nW/S und A/D oder Pfeile: Fahren"
 	instructions.TextColor3 = Color3.fromRGB(255, 255, 255)
 	instructions.TextSize = 16
 	instructions.TextWrapped = true
@@ -131,7 +131,7 @@ local function updateHud()
 		local score = currentCarBody:GetAttribute("Score") or 0
 		local speed = currentCarBody:GetAttribute("Speed") or 0
 		local state = currentCarBody:GetAttribute("GameState") or "Running"
-		local statusText = currentCarBody:GetAttribute("StatusText") or "Weiche den Hindernissen aus"
+		local statusText = currentCarBody:GetAttribute("StatusText") or "Weiche dem Gegenverkehr aus"
 		local elapsed = currentCarBody:GetAttribute("ElapsedTime") or 0
 		pointsLabel.Text = string.format("Punkte: %d", score)
 		speedLabel.Text = string.format("Tempo: %d", speed)

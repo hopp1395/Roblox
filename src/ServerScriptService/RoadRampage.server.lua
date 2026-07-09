@@ -54,24 +54,24 @@ skyPlate.Size = Vector3.new(4096, 1, 8192)
 skyPlate.Position = Vector3.new(0, GameConfig.WORLD_FLOOR_Y - 1, 2048)
 skyPlate.Parent = worldFolder
 
-local obstacleTemplates = {
+local trafficTemplates = {
 	{
-		name = "ConcreteWall",
-		size = Vector3.new(12, 8, 3),
-		color = Color3.fromRGB(132, 132, 138),
-		material = Enum.Material.Concrete,
+		name = "Sedan",
+		size = Vector3.new(7, 2.6, 11),
+		color = Color3.fromRGB(60, 90, 200),
+		material = Enum.Material.SmoothPlastic,
 	},
 	{
-		name = "BrickWall",
-		size = Vector3.new(14, 9, 3),
-		color = Color3.fromRGB(150, 77, 62),
-		material = Enum.Material.Brick,
-	},
-	{
-		name = "RoadBarrier",
-		size = Vector3.new(10, 7, 3),
-		color = Color3.fromRGB(218, 118, 44),
+		name = "Truck",
+		size = Vector3.new(8, 4, 17),
+		color = Color3.fromRGB(230, 170, 40),
 		material = Enum.Material.Metal,
+	},
+	{
+		name = "Van",
+		size = Vector3.new(7.5, 3.4, 13),
+		color = Color3.fromRGB(225, 225, 230),
+		material = Enum.Material.SmoothPlastic,
 	},
 }
 
@@ -97,7 +97,7 @@ local bonusTemplates = {
 local lanes = {}
 local playerStates = {}
 local nextLaneIndex = 0
-local nextObstacleId = 0
+local nextTrafficId = 0
 local nextBonusId = 0
 
 local function clamp(value, minimum, maximum)
@@ -387,41 +387,70 @@ local function ensureRoadAhead(lane, carZ)
 	end
 end
 
-local function createObstaclePart(lane, obstacleZ)
-	nextObstacleId += 1
-
-	local template = obstacleTemplates[math.random(1, #obstacleTemplates)]
-	local usableHalfWidth = GameConfig.ROAD_WIDTH * 0.5 - GameConfig.OBSTACLE_SIDE_MARGIN
-	local localX = math.random(-usableHalfWidth * 10, usableHalfWidth * 10) / 10
-	local part = Instance.new("Part")
-	part.Name = string.format("%s_%d", template.name, nextObstacleId)
-	part.Anchored = true
-	part.CanCollide = false
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Size = template.size
-	part.Color = template.color
-	part.Material = template.material
-	part.CFrame = CFrame.new(
-		lane.xOffset + localX,
-		GameConfig.WORLD_FLOOR_Y + template.size.Y * 0.5,
-		obstacleZ
+local function positionTrafficVehicle(vehicle)
+	local baseCFrame = CFrame.new(
+		vehicle.worldX,
+		GameConfig.WORLD_FLOOR_Y + vehicle.body.Size.Y * 0.5,
+		vehicle.z
 	)
 
-	part.Parent = lane.obstaclesFolder
+	vehicle.body.CFrame = baseCFrame
+	vehicle.cabin.CFrame = baseCFrame * CFrame.new(0, vehicle.body.Size.Y * 0.5 + vehicle.cabin.Size.Y * 0.35, vehicle.body.Size.Z * 0.08)
+end
 
-	local obstacle = {
-		id = nextObstacleId,
+local function createTrafficVehicle(lane, vehicleZ)
+	nextTrafficId += 1
+
+	local template = trafficTemplates[math.random(1, #trafficTemplates)]
+	local usableHalfWidth = GameConfig.ROAD_WIDTH * 0.5 - GameConfig.TRAFFIC_SIDE_MARGIN
+	local localX = math.random(-usableHalfWidth * 10, usableHalfWidth * 10) / 10
+	local speed = GameConfig.TRAFFIC_SPEED_MIN
+		+ math.random() * (GameConfig.TRAFFIC_SPEED_MAX - GameConfig.TRAFFIC_SPEED_MIN)
+
+	local model = Instance.new("Model")
+	model.Name = string.format("%s_%d", template.name, nextTrafficId)
+	model.Parent = lane.trafficFolder
+
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Anchored = true
+	body.CanCollide = false
+	body.TopSurface = Enum.SurfaceType.Smooth
+	body.BottomSurface = Enum.SurfaceType.Smooth
+	body.Size = template.size
+	body.Color = template.color
+	body.Material = template.material
+	body.Parent = model
+
+	local cabin = Instance.new("Part")
+	cabin.Name = "Cabin"
+	cabin.Anchored = true
+	cabin.CanCollide = false
+	cabin.TopSurface = Enum.SurfaceType.Smooth
+	cabin.BottomSurface = Enum.SurfaceType.Smooth
+	cabin.Size = Vector3.new(template.size.X * 0.65, template.size.Y * 0.7, template.size.Z * 0.4)
+	cabin.Color = Color3.fromRGB(200, 225, 245)
+	cabin.Material = Enum.Material.Glass
+	cabin.Parent = model
+
+	model.PrimaryPart = body
+
+	local vehicle = {
+		id = nextTrafficId,
 		lane = lane,
 		localX = localX,
 		worldX = lane.xOffset + localX,
-		z = obstacleZ,
-		part = part,
+		z = vehicleZ,
+		speed = speed,
+		model = model,
+		body = body,
+		cabin = cabin,
 		halfWidth = template.size.X * 0.5,
 		halfLength = template.size.Z * 0.5,
 	}
 
-	lane.obstacles[nextObstacleId] = obstacle
+	lane.traffic[nextTrafficId] = vehicle
+	positionTrafficVehicle(vehicle)
 end
 
 local function addPoint(state, amount)
@@ -434,7 +463,7 @@ local function createBonusItem(lane, bonusZ)
 	nextBonusId += 1
 
 	local template = bonusTemplates[math.random(1, #bonusTemplates)]
-	local usableHalfWidth = GameConfig.ROAD_WIDTH * 0.5 - GameConfig.OBSTACLE_SIDE_MARGIN - 2
+	local usableHalfWidth = GameConfig.ROAD_WIDTH * 0.5 - GameConfig.TRAFFIC_SIDE_MARGIN - 2
 	local localX = math.random(-usableHalfWidth * 10, usableHalfWidth * 10) / 10
 
 	local model = Instance.new("Model")
@@ -548,18 +577,18 @@ local function destroyBonus(lane, bonusId)
 	lane.bonusItems[bonusId] = nil
 end
 
-local function ensureObstaclesAhead(lane, carZ)
-	local obstacleLimit = math.min(carZ + GameConfig.OBSTACLE_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_OBSTACLE_BUFFER)
+local function ensureTrafficAhead(lane, carZ)
+	local trafficLimit = math.min(carZ + GameConfig.SPAWN_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_SPAWN_BUFFER)
 
-	while lane.nextObstacleZ < obstacleLimit do
-		local spacing = math.random(GameConfig.OBSTACLE_SPACING_MIN, GameConfig.OBSTACLE_SPACING_MAX)
-		lane.nextObstacleZ += spacing
-		createObstaclePart(lane, lane.nextObstacleZ)
+	while lane.nextTrafficZ < trafficLimit do
+		local spacing = math.random(GameConfig.TRAFFIC_SPACING_MIN, GameConfig.TRAFFIC_SPACING_MAX)
+		lane.nextTrafficZ += spacing
+		createTrafficVehicle(lane, lane.nextTrafficZ)
 	end
 end
 
 local function ensureBonusAhead(lane, carZ)
-	local bonusLimit = math.min(carZ + GameConfig.OBSTACLE_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_OBSTACLE_BUFFER)
+	local bonusLimit = math.min(carZ + GameConfig.SPAWN_LOOKAHEAD, GameConfig.FINISH_LINE_Z - GameConfig.FINISH_SPAWN_BUFFER)
 
 	while lane.nextBonusZ < bonusLimit do
 		local spacing = math.random(GameConfig.BONUS_SPACING_MIN, GameConfig.BONUS_SPACING_MAX)
@@ -578,9 +607,9 @@ local function ensureLane(laneIndex)
 	laneFolder.Name = string.format("Lane_%d", laneIndex)
 	laneFolder.Parent = lanesFolder
 
-	local obstaclesFolder = Instance.new("Folder")
-	obstaclesFolder.Name = "Obstacles"
-	obstaclesFolder.Parent = laneFolder
+	local trafficFolder = Instance.new("Folder")
+	trafficFolder.Name = "Traffic"
+	trafficFolder.Parent = laneFolder
 
 	local bonusFolder = Instance.new("Folder")
 	bonusFolder.Name = "Bonus"
@@ -590,11 +619,11 @@ local function ensureLane(laneIndex)
 		index = laneIndex,
 		xOffset = xOffset,
 		folder = laneFolder,
-		obstaclesFolder = obstaclesFolder,
+		trafficFolder = trafficFolder,
 		bonusFolder = bonusFolder,
-		obstacles = {},
+		traffic = {},
 		bonusItems = {},
-		nextObstacleZ = GameConfig.OBSTACLE_START_Z,
+		nextTrafficZ = GameConfig.TRAFFIC_START_Z,
 		nextBonusZ = GameConfig.BONUS_START_Z,
 		lastSegmentIndex = -1,
 		finishBannerLabels = nil,
@@ -608,7 +637,7 @@ local function ensureLane(laneIndex)
 	buildRoadSegment(lane, -1)
 	lane.lastSegmentIndex = -1
 	ensureRoadAhead(lane, 0)
-	ensureObstaclesAhead(lane, 0)
+	ensureTrafficAhead(lane, 0)
 	ensureBonusAhead(lane, 0)
 
 	return lane
@@ -719,7 +748,7 @@ local function createCar(player, lane)
 	body:SetAttribute("Score", 0)
 	body:SetAttribute("GameTitle", GameConfig.GAME_NAME)
 	body:SetAttribute("GameState", "Running")
-	body:SetAttribute("StatusText", "Weiche den Hindernissen aus")
+	body:SetAttribute("StatusText", "Weiche dem Gegenverkehr aus")
 
 	return model, positionCar, {
 		engine = engineSound,
@@ -782,27 +811,27 @@ local function cleanupPlayer(player)
 	playerStates[player] = nil
 end
 
-local function destroyObstacle(lane, obstacleId)
-	local obstacle = lane.obstacles[obstacleId]
-	if not obstacle then
+local function destroyTrafficVehicle(lane, vehicleId)
+	local vehicle = lane.traffic[vehicleId]
+	if not vehicle then
 		return
 	end
 
-	if obstacle.part then
-		obstacle.part:Destroy()
+	if vehicle.model then
+		vehicle.model:Destroy()
 	end
 
-	lane.obstacles[obstacleId] = nil
+	lane.traffic[vehicleId] = nil
 end
 
-local function crashPlayer(state, obstacle)
+local function crashPlayer(state, vehicle)
 	state.crashed = true
 	state.speed = 0
 	state.input.throttle = 0
 	state.input.steer = 0
 	state.elapsedTime = tick() - state.startTime
 
-	local crashStopZ = math.max(0, obstacle.z - (GameConfig.CAR_HALF_LENGTH + obstacle.halfLength * 0.5))
+	local crashStopZ = math.max(0, vehicle.z - (GameConfig.CAR_HALF_LENGTH + vehicle.halfLength * 0.5))
 	state.z = math.min(state.z, crashStopZ)
 	state.positionCar(state.localX, state.z, 0)
 	state.body.Color = Color3.fromRGB(90, 25, 20)
@@ -824,9 +853,9 @@ local function crashPlayer(state, obstacle)
 		end
 	end
 
-	if obstacle.part then
+	if vehicle.body then
 		local explosion = Instance.new("Explosion")
-		explosion.Position = obstacle.part.Position
+		explosion.Position = vehicle.body.Position
 		explosion.BlastPressure = 0
 		explosion.BlastRadius = 8
 		explosion.DestroyJointRadiusPercent = 0
@@ -901,28 +930,31 @@ local function updatePlayerState(state, dt)
 	updateCarAudio(state)
 
 	ensureRoadAhead(state.lane, state.z)
-	ensureObstaclesAhead(state.lane, state.z)
+	ensureTrafficAhead(state.lane, state.z)
 	ensureBonusAhead(state.lane, state.z)
 
-	for obstacleId, obstacle in pairs(state.lane.obstacles) do
-		if obstacle.z < state.z - GameConfig.OBSTACLE_CULL_DISTANCE then
+	for vehicleId, vehicle in pairs(state.lane.traffic) do
+		vehicle.z -= vehicle.speed * dt
+		positionTrafficVehicle(vehicle)
+
+		if vehicle.z < state.z - GameConfig.SPAWN_CULL_DISTANCE then
 			addPoint(state, 1)
-			destroyObstacle(state.lane, obstacleId)
+			destroyTrafficVehicle(state.lane, vehicleId)
 		else
-			local dx = math.abs((state.lane.xOffset + state.localX) - obstacle.worldX)
-			local dz = math.abs(state.z - obstacle.z)
-			local hitWidth = GameConfig.CAR_HALF_WIDTH + obstacle.halfWidth * 0.75
-			local hitLength = GameConfig.CAR_HALF_LENGTH + obstacle.halfLength * 0.75
+			local dx = math.abs((state.lane.xOffset + state.localX) - vehicle.worldX)
+			local dz = math.abs(state.z - vehicle.z)
+			local hitWidth = GameConfig.CAR_HALF_WIDTH + vehicle.halfWidth * 0.75
+			local hitLength = GameConfig.CAR_HALF_LENGTH + vehicle.halfLength * 0.75
 
 			if dx <= hitWidth and dz <= hitLength then
-				crashPlayer(state, obstacle)
+				crashPlayer(state, vehicle)
 				return
 			end
 		end
 	end
 
 	for bonusId, bonus in pairs(state.lane.bonusItems) do
-		if bonus.z < state.z - GameConfig.OBSTACLE_CULL_DISTANCE then
+		if bonus.z < state.z - GameConfig.SPAWN_CULL_DISTANCE then
 			destroyBonus(state.lane, bonusId)
 		else
 			local dx = math.abs((state.lane.xOffset + state.localX) - bonus.worldX)
@@ -933,7 +965,7 @@ local function updatePlayerState(state, dt)
 				state.body:SetAttribute("StatusText", string.format("%s gesammelt!", bonus.label))
 				task.delay(1.5, function()
 					if not state.crashed and not state.finished then
-						state.body:SetAttribute("StatusText", "Weiche den Hindernissen aus")
+						state.body:SetAttribute("StatusText", "Weiche dem Gegenverkehr aus")
 					end
 				end)
 				destroyBonus(state.lane, bonusId)
