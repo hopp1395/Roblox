@@ -17,6 +17,7 @@ local hud = nil
 local statusLabel = nil
 local pointsLabel = nil
 local speedLabel = nil
+local timerLabel = nil
 
 local keyState = {
 	forward = false,
@@ -84,6 +85,17 @@ local function buildHud()
 	speedLabel.TextXAlignment = Enum.TextXAlignment.Left
 	speedLabel.Parent = screenGui
 
+	timerLabel = Instance.new("TextLabel")
+	timerLabel.BackgroundTransparency = 1
+	timerLabel.Position = UDim2.fromOffset(20, 134)
+	timerLabel.Size = UDim2.fromOffset(280, 28)
+	timerLabel.Font = Enum.Font.GothamSemibold
+	timerLabel.Text = "Zeit: 00:00:00"
+	timerLabel.TextColor3 = Color3.fromRGB(200, 230, 255)
+	timerLabel.TextSize = 20
+	timerLabel.TextXAlignment = Enum.TextXAlignment.Left
+	timerLabel.Parent = screenGui
+
 	local instructions = Instance.new("TextLabel")
 	instructions.BackgroundTransparency = 0.2
 	instructions.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -103,8 +115,15 @@ local function buildHud()
 	hud = screenGui
 end
 
+local function formatTime(seconds)
+	local mm = math.floor(seconds / 60)
+	local ss = math.floor(seconds % 60)
+	local mi = math.floor((seconds % 1) * 100)
+	return string.format("%02d:%02d:%02d", mm, ss, mi)
+end
+
 local function updateHud()
-	if not statusLabel or not pointsLabel or not speedLabel then
+	if not statusLabel or not pointsLabel or not speedLabel or not timerLabel then
 		return
 	end
 
@@ -113,24 +132,31 @@ local function updateHud()
 		local speed = currentCarBody:GetAttribute("Speed") or 0
 		local state = currentCarBody:GetAttribute("GameState") or "Running"
 		local statusText = currentCarBody:GetAttribute("StatusText") or "Weiche den Hindernissen aus"
+		local elapsed = currentCarBody:GetAttribute("ElapsedTime") or 0
 		pointsLabel.Text = string.format("Punkte: %d", score)
 		speedLabel.Text = string.format("Tempo: %d", speed)
+		timerLabel.Text = string.format("Zeit: %s", formatTime(elapsed))
 
 		if state == "Crashed" then
 			statusLabel.Text = statusText
 			statusLabel.TextColor3 = Color3.fromRGB(255, 122, 122)
+			timerLabel.TextColor3 = Color3.fromRGB(255, 122, 122)
 		elseif state == "Finished" then
 			statusLabel.Text = statusText
 			statusLabel.TextColor3 = Color3.fromRGB(122, 255, 145)
+			timerLabel.TextColor3 = Color3.fromRGB(122, 255, 145)
 		else
 			statusLabel.Text = statusText
 			statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
+			timerLabel.TextColor3 = Color3.fromRGB(200, 230, 255)
 		end
 	else
 		statusLabel.Text = "Status: Warte auf das Auto"
 		statusLabel.TextColor3 = Color3.fromRGB(255, 236, 143)
 		pointsLabel.Text = "Punkte: 0"
 		speedLabel.Text = "Tempo: 0"
+		timerLabel.Text = "Zeit: 00:00:00"
+		timerLabel.TextColor3 = Color3.fromRGB(200, 230, 255)
 	end
 end
 

@@ -104,6 +104,13 @@ local function clamp(value, minimum, maximum)
 	return math.max(minimum, math.min(maximum, value))
 end
 
+local function formatTime(seconds)
+	local mm = math.floor(seconds / 60)
+	local ss = math.floor(seconds % 60)
+	local mi = math.floor((seconds % 1) * 100)
+	return string.format("%02d:%02d:%02d", mm, ss, mi)
+end
+
 local function createPart(properties)
 	local part = Instance.new("Part")
 	part.Anchored = true
@@ -115,6 +122,18 @@ local function createPart(properties)
 	end
 
 	return part
+end
+
+local function createSound(parent, name, soundId, volume, looped)
+	local sound = Instance.new("Sound")
+	sound.Name = name
+	sound.SoundId = soundId
+	sound.Volume = volume
+	sound.Looped = looped
+	sound.RollOffMaxDistance = 150
+	sound.RollOffMinDistance = 15
+	sound.Parent = parent
+	return sound
 end
 
 local function hideCharacter(character)
@@ -250,6 +269,10 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 	backLabel.Parent = backSurfaceGui
 
 	if isFinishLine then
+		lane.finishBannerLabels = { label, backLabel }
+	end
+
+	if isFinishLine then
 		local stripeCount = 12
 		local stripeWidth = GameConfig.ROAD_WIDTH / stripeCount
 
@@ -279,6 +302,54 @@ local function createCheckpointLine(lane, name, lineZ, color, text)
 	end
 
 	line.Parent = checkpointFolder
+end
+
+local function setFinishBannerText(lane, text)
+	if not lane.finishBannerLabels then
+		return
+	end
+
+	for _, label in ipairs(lane.finishBannerLabels) do
+		if label and label.Parent then
+			label.Text = text
+		end
+	end
+end
+
+local function updateCarAudio(state)
+	local sounds = state.sounds
+	if not sounds then
+		return
+	end
+
+	local speedRatio = clamp(state.speed / GameConfig.MAX_SPEED, 0, 1)
+	local steerAmount = math.abs(state.input.steer)
+	local isDriving = state.speed > 0.5 and not state.crashed
+
+	if sounds.engine and not sounds.engine.IsPlaying then
+		sounds.engine:Play()
+	end
+
+	if sounds.engine then
+		sounds.engine.Volume = 0.18 + speedRatio * 0.42
+		sounds.engine.PlaybackSpeed = 0.8 + speedRatio * 0.8
+	end
+
+	if sounds.tire then
+		local shouldSqueal = isDriving and steerAmount > 0.35 and state.speed > GameConfig.MIN_SPEED
+		if shouldSqueal then
+			if not sounds.tire.IsPlaying then
+				sounds.tire:Play()
+			end
+			sounds.tire.Volume = clamp((speedRatio * 0.55) + (steerAmount * 0.35), 0.08, 0.65)
+			sounds.tire.PlaybackSpeed = 0.9 + speedRatio * 0.5
+		else
+			sounds.tire.Volume = 0
+			if sounds.tire.IsPlaying then
+				sounds.tire:Stop()
+			end
+		end
+	end
 end
 
 local function createRoadEndBarrier(lane)
@@ -526,6 +597,7 @@ local function ensureLane(laneIndex)
 		nextObstacleZ = GameConfig.OBSTACLE_START_Z,
 		nextBonusZ = GameConfig.BONUS_START_Z,
 		lastSegmentIndex = -1,
+		finishBannerLabels = nil,
 	}
 
 	lanes[laneIndex] = lane
@@ -580,6 +652,15 @@ local function createCar(player, lane)
 	bumper.Color = Color3.fromRGB(240, 240, 240)
 	bumper.Material = Enum.Material.Metal
 	bumper.Parent = model
+
+	local engineSound = createSound(body, "EngineLoop", GameConfig.ENGINE_SOUND_ID, 0.25, true)
+	engineSound.PlaybackSpeed = 1
+	engineSound:Play()
+
+	local tireSound = createSound(body, "TireSqueal", GameConfig.TIRE_SQUEAL_SOUND_ID, 0, true)
+	tireSound.PlaybackSpeed = 1
+
+	local crashSound = createSound(body, "CrashImpact", GameConfig.CRASH_SOUND_ID, 1, false)
 
 	local wheelOffsets = {
 		Vector3.new(-3.6, -1.1, -4.1),
@@ -640,7 +721,11 @@ local function createCar(player, lane)
 	body:SetAttribute("GameState", "Running")
 	body:SetAttribute("StatusText", "Weiche den Hindernissen aus")
 
-	return model, positionCar
+	return model, positionCar, {
+		engine = engineSound,
+		tire = tireSound,
+		crash = crashSound,
+	}
 end
 
 local function createLeaderstats(player)
@@ -660,7 +745,7 @@ local function registerPlayer(player)
 	nextLaneIndex += 1
 	local lane = ensureLane(nextLaneIndex)
 	local hits = createLeaderstats(player)
-	local carModel, positionCar = createCar(player, lane)
+	local carModel, positionCar, sounds = createCar(player, lane)
 
 	playerStates[player] = {
 		player = player,
@@ -673,7 +758,10 @@ local function registerPlayer(player)
 		speed = GameConfig.START_SPEED,
 		score = 0,
 		hits = hits,
+		sounds = sounds,
 		finished = false,
+		startTime = tick(),
+		elapsedTime = 0,
 		input = {
 			throttle = 0,
 			steer = 0,
@@ -712,6 +800,7 @@ local function crashPlayer(state, obstacle)
 	state.speed = 0
 	state.input.throttle = 0
 	state.input.steer = 0
+	state.elapsedTime = tick() - state.startTime
 
 	local crashStopZ = math.max(0, obstacle.z - (GameConfig.CAR_HALF_LENGTH + obstacle.halfLength * 0.5))
 	state.z = math.min(state.z, crashStopZ)
@@ -719,8 +808,21 @@ local function crashPlayer(state, obstacle)
 	state.body.Color = Color3.fromRGB(90, 25, 20)
 	state.body.Material = Enum.Material.Metal
 	state.body:SetAttribute("Speed", 0)
+	state.body:SetAttribute("ElapsedTime", state.elapsedTime)
 	state.body:SetAttribute("GameState", "Crashed")
-	state.body:SetAttribute("StatusText", "Crash! Spiel vorbei")
+	state.body:SetAttribute("StatusText", string.format("Crash! Zeit: %s | Punkte: %d", formatTime(state.elapsedTime), state.score))
+
+	if state.sounds then
+		if state.sounds.engine and state.sounds.engine.IsPlaying then
+			state.sounds.engine:Stop()
+		end
+		if state.sounds.tire and state.sounds.tire.IsPlaying then
+			state.sounds.tire:Stop()
+		end
+		if state.sounds.crash then
+			state.sounds.crash:Play()
+		end
+	end
 
 	if obstacle.part then
 		local explosion = Instance.new("Explosion")
@@ -743,11 +845,25 @@ local function updatePlayerState(state, dt)
 	if state.finished then
 		state.speed = 0
 		state.body:SetAttribute("Speed", 0)
+		state.body:SetAttribute("ElapsedTime", state.elapsedTime)
 		state.body:SetAttribute("GameState", "Finished")
-		state.body:SetAttribute("StatusText", "Ziel erreicht")
+		state.body:SetAttribute("StatusText", string.format("Ziel! Zeit: %s | Punkte: %d", formatTime(state.elapsedTime), state.score))
+		setFinishBannerText(state.lane, string.format("ZIEL %s", formatTime(state.elapsedTime)))
+		if state.sounds then
+			if state.sounds.engine then
+				state.sounds.engine.Volume = 0.12
+				state.sounds.engine.PlaybackSpeed = 0.85
+			end
+			if state.sounds.tire and state.sounds.tire.IsPlaying then
+				state.sounds.tire:Stop()
+			end
+		end
 		state.positionCar(state.localX, state.z, 0)
 		return
 	end
+
+	state.elapsedTime = tick() - state.startTime
+	state.body:SetAttribute("ElapsedTime", state.elapsedTime)
 
 	local throttle = state.input.throttle
 	local steer = state.input.steer
@@ -769,8 +885,11 @@ local function updatePlayerState(state, dt)
 	local nextZ = state.z + state.speed * dt
 	if nextZ >= GameConfig.FINISH_LINE_Z then
 		nextZ = GameConfig.FINISH_LINE_Z
+		state.elapsedTime = tick() - state.startTime
+		state.body:SetAttribute("ElapsedTime", state.elapsedTime)
 		state.finished = true
 		state.speed = 0
+		setFinishBannerText(state.lane, string.format("ZIEL %s", formatTime(state.elapsedTime)))
 	end
 
 	state.z = nextZ
@@ -779,6 +898,7 @@ local function updatePlayerState(state, dt)
 	state.positionCar(state.localX, state.z, steerAngle)
 	state.body:SetAttribute("Speed", math.floor(state.speed + 0.5))
 	state.body:SetAttribute("Score", state.score)
+	updateCarAudio(state)
 
 	ensureRoadAhead(state.lane, state.z)
 	ensureObstaclesAhead(state.lane, state.z)

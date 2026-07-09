@@ -31,4 +31,7 @@ return {
 	STEER_SPEED = 46,
 	MAX_STEER_ANGLE = 12,
 	WORLD_FLOOR_Y = 0,
+	ENGINE_SOUND_ID = "rbxassetid://6421547243",
+	TIRE_SQUEAL_SOUND_ID = "rbxassetid://9120386436",
+	CRASH_SOUND_ID = "rbxassetid://138166210",
 }
